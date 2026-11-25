@@ -1,0 +1,52 @@
+package handlers
+
+import (
+	"context"
+	"net/http"
+
+	"gitlab.com/gitlab-org/gitlab-pages/internal/config"
+	"gitlab.com/gitlab-org/gitlab-pages/internal/ratelimiter"
+	"gitlab.com/gitlab-org/gitlab-pages/internal/request"
+	"gitlab.com/gitlab-org/gitlab-pages/metrics"
+)
+
+// NewRateLimiterHandler configures the ratelimiter middleware
+// TODO: make this unexported once https://gitlab.com/gitlab-org/gitlab-pages/-/issues/670 is done
+func NewRateLimiterHandler(ctx context.Context, handler http.Handler, config *config.RateLimit) http.Handler {
+	sourceIPLimiter := ratelimiter.New(
+		"http_requests_by_source_ip",
+		ratelimiter.WithCacheMaxSize(ratelimiter.DefaultSourceIPCacheSize),
+		ratelimiter.WithCachedEntriesMetric(metrics.RateLimitCachedEntries),
+		ratelimiter.WithCachedRequestsMetric(metrics.RateLimitCacheRequests),
+		ratelimiter.WithBlockedCountMetric(metrics.RateLimitBlockedCount),
+		ratelimiter.WithLimitPerSecond(config.SourceIPLimitPerSecond),
+		ratelimiter.WithBurstSize(config.SourceIPBurst),
+		ratelimiter.WithCloseConnection(true),
+		ratelimiter.WithBypassCIDRs(config.RateLimitBypassCIDRs),
+	)
+
+	handler = sourceIPLimiter.Middleware(handler)
+
+	domainLimiter := ratelimiter.New(
+		"http_requests_by_domain",
+		ratelimiter.WithCacheMaxSize(ratelimiter.DefaultDomainCacheSize),
+		ratelimiter.WithKeyFunc(request.GetHostWithoutPort),
+		ratelimiter.WithCachedEntriesMetric(metrics.RateLimitCachedEntries),
+		ratelimiter.WithCachedRequestsMetric(metrics.RateLimitCacheRequests),
+		ratelimiter.WithBlockedCountMetric(metrics.RateLimitBlockedCount),
+		ratelimiter.WithLimitPerSecond(config.DomainLimitPerSecond),
+		ratelimiter.WithBurstSize(config.DomainBurst),
+		ratelimiter.WithCloseConnection(true),
+		ratelimiter.WithBypassCIDRs(config.RateLimitBypassCIDRs),
+	)
+
+	finalHandler := domainLimiter.Middleware(handler)
+
+	go func() {
+		<-ctx.Done()
+		sourceIPLimiter.Stop()
+		domainLimiter.Stop()
+	}()
+
+	return finalHandler
+}

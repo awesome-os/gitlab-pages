@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://gitlab.com/gitlab-org/caproni/-/raw/main/schema/caproni-project.schema.json
+
+reloaders:
+  gitlab-pages:
+    type: mirror
+    repository: gitlab-pages
+    edit_mode: false
+    mirror:
+      target:
+        namespace: gitlab
+        kubernetes_type: deployment
+        name: gitlab-gitlab-pages
+        container: gitlab-pages
+      filesystem:
+        mode: localwithoverrides
+        read_only:
+          - "^/etc/gitlab-pages/.*"
+          - "^/etc/gitlab-secrets/.*"
+      network:
+        outgoing:
+          ignore_localhost: true
+      edit_mode_processes:
+        gitlab-pages:
+          # air rebuilds and restarts Pages on file changes. Build flags are in .air.toml.
+          command: mise exec -- air
+          port: 8090

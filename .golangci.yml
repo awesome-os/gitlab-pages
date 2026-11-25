@@ -1,0 +1,102 @@
+version: "2"
+run:
+  modules-download-mode: readonly
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - dogsled
+    - errorlint
+    - goconst
+    - gocyclo
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - revive
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+    - whitespace
+  settings:
+    gocyclo:
+      min-complexity: 10
+    gosec:
+      # Exclude gosec's experimental taint-analysis rules (G703/G704/G706/G710).
+      # In this codebase they only flag intentional behaviour: same-host
+      # HTTP->HTTPS and canonical/OAuth redirects (whose targets are validated
+      # via domainAllowed), the configured internal GitLab API request, and
+      # reads of system-configured TLS cert paths. They are experimental and
+      # produce only false positives here; revisit adopting them if a future
+      # gosec release stabilises the taint analyzer.
+      excludes:
+        - G703
+        - G704
+        - G706
+        - G710
+    govet:
+      disable:
+        - shadow
+        - fieldalignment
+      enable-all: true
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - bodyclose
+          - goconst
+          - gosec
+        path: _test\.go
+      - linters:
+          - gosec
+        path: internal/fixture/fixtures\.go
+      - path: (.+)\.go$
+        text: 'unused-parameter:'
+      # goconst: ignore short, low-value, or cross-meaning repeats where a
+      # shared constant adds no clarity (e.g. JWT claim vs query-param keys
+      # that happen to share a name).
+      - linters:
+          - goconst
+        text: 'string `(domain|code|false|zip|-auth-client-id|-auth-client-secret)`'
+      # goconst: test fixtures legitimately repeat the same sample values.
+      - linters:
+          - goconst
+        path: test/gitlabstub/
+      # gosec: the GitLab API stub is test infrastructure; its hardcoded
+      # fixture key (G101) and fake access_token field (G117) are not real
+      # secrets.
+      - linters:
+          - gosec
+        path: test/gitlabstub/
+    paths:
+      - _mock\.go
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  uniq-by-line: false
+formatters:
+  enable:
+    - gci
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(gitlab.com/gitlab-org/gitlab-pages)
+    goimports:
+      local-prefixes:
+        - gitlab.com/gitlab-org/gitlab-pages
+  exclusions:
+    generated: lax
+    paths:
+      - _mock\.go

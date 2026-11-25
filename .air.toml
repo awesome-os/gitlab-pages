@@ -1,0 +1,14 @@
+root = "."
+tmp_dir = "bin/air"
+
+[build]
+  cmd = "go build -o ./bin/air/gitlab-pages ."
+  entrypoint = ["./bin/air/gitlab-pages"]
+  # The pod renders its config on start, but the paused copy doesn't, so we render it the same way here.
+  pre_cmd = ["mise exec gomplate@5.2.0 -- gomplate --left-delim '{%' --right-delim '%}' --file /etc/gitlab-pages/templates/config.tpl --out bin/air/config --chmod 600"]
+  # Without -pages-root, Pages fails to start because /srv/gitlab-pages only exists in the pod.
+  args_bin = ["-config=bin/air/config", "-pages-root=shared/pages"]
+  include_ext = ["go"]
+  include_file = ["go.mod", "go.sum"]
+  exclude_dir = ["bin", "docs", "shared", "test"]
+  exclude_regex = ["_test.go"]
